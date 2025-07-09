@@ -74,7 +74,6 @@ int main(int argc, char **argv)
 	}
 		printf("%c %d - %dx%d (pitch %4d fmt %d r:0x%06x g:0x%06x b:0x%06x)\n",currmode == i ? '*': ' ',i,info->HorizontalResolution,info->VerticalResolution,info->PixelsPerScanLine,info->PixelFormat,rf,gf,bf);
 	}
-
 	printf("Base Buffer: %x, Size %d\n", gop->Mode->FrameBufferBase, gop->Mode->FrameBufferSize);	
 	printf("Current: %dx%d pitch %4d fmt %d\n",gop->Mode->Information->HorizontalResolution,gop->Mode->Information->VerticalResolution,gop->Mode->Information->PixelsPerScanLine,gop->Mode->Information->PixelFormat);
 	printf("Press any key to continue...\n");
