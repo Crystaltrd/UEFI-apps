@@ -1,7 +1,7 @@
 ARCH = x86_64
 TARGET = gop.efi
 SRCS = $(wildcard *.c)
-
+LIBS = -lm
 include uefi/Makefile
 
 test: 

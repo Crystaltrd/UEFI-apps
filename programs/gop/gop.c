@@ -1,3 +1,5 @@
+#undef __STDC_VERSION__
+#include <efi.h>
 #include <uefi.h>
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define FLAG_BLUE 0x0065bd
