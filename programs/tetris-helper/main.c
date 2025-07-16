@@ -2,13 +2,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define BOARD_WIDTH 10
 #define BOARD_HEIGHT 20
-#define BORDER_GLYPH "░"
-#define FULL_GLYPH "█"
 #define NUM_TETROMINOS 7
-
+#define IN_BOARD(_x, _y)                                                       \
+  ((_x) >= 0 && (_y) >= 0 && (_x) < BOARD_WIDTH && (_y) < BOARD_HEIGHT)
 enum COLORS { NONE, CYAN, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED, BORDER };
+static const char colors[BORDER + 1] = {" CBOYGPR|"};
 struct Tetromino {
   enum COLORS color;
   uint16_t rotations[4];
@@ -17,6 +18,7 @@ static struct {
   uint8_t board[BOARD_HEIGHT][BOARD_WIDTH];
   struct {
     const struct Tetromino *ttm;
+    uint8_t rot;
     uint8_t pos_x, pos_y;
   } curr;
 } state;
@@ -35,7 +37,7 @@ static const struct Tetromino TETROMINOS[NUM_TETROMINOS] = {
      .rotations = {0x0231, 0x0360, 0x0462, 0x0036}},
     {// S
      .color = GREEN,
-     .rotations = {0x0132, 0x0630, 0x2640, 0x0063}},
+     .rotations = {0x0132, 0x0630, 0x0264, 0x0063}},
     {// J
      .color = BLUE,
      .rotations = {0x0223, 0x0170, 0x0622, 0x0074}},
@@ -45,24 +47,28 @@ static const struct Tetromino TETROMINOS[NUM_TETROMINOS] = {
 void print_board() {
   printf("    ");
   for (int x = 0; x < BOARD_WIDTH; x++) {
-    printf("%X", x);
+    printf("%X ", x);
   }
   printf("\n");
-  printf("   ");
-  for (int x = 0; x < BOARD_WIDTH + 2; x++) {
-    fputs(BORDER_GLYPH, stdout);
+  printf("    ");
+  for (int x = 0; x < BOARD_WIDTH; x++) {
+    fputc(colors[BORDER], stdout);
+    putchar(' ');
   }
   putchar('\n');
   for (int y = 0; y < BOARD_HEIGHT; y++) {
-    printf("%02X " BORDER_GLYPH, y);
+    printf("%02X %c", y, colors[BORDER]);
     for (int x = 0; x < BOARD_WIDTH; x++) {
-      fputs(state.board[y][x] != 0 ? FULL_GLYPH : " ", stdout);
+      fputc(colors[state.board[y][x]], stdout);
+      putchar(' ');
     }
-    puts(BORDER_GLYPH);
+    putchar(colors[BORDER]);
+    putchar('\n');
   }
-  printf("   ");
-  for (int x = 0; x < BOARD_WIDTH + 2; x++) {
-    fputs(BORDER_GLYPH, stdout);
+  printf("    ");
+  for (int x = 0; x < BOARD_WIDTH; x++) {
+    fputc(colors[BORDER], stdout);
+    putchar(' ');
   }
   putchar('\n');
 }
@@ -73,57 +79,89 @@ void ttm_test() {
       printf("Rotation %d:\n", rot);
       for (int line = 0; line < 4; line++) {
         for (int col = 0; col < 4; col++) {
-          printf("%s", (TETROMINOS[x].rotations[rot] & (1 << col * 4 + line))
-                           ? FULL_GLYPH
-                           : BORDER_GLYPH);
+          printf("%c", (TETROMINOS[x].rotations[rot] & (1 << col * 4 + line))
+                           ? colors[TETROMINOS[x].color]
+                           : colors[BORDER]);
         }
         printf("\n");
       }
     }
   }
 }
-bool can_spawn(int x, int y, const struct Tetromino *ttm) {
+bool can_modify(uint8_t x, uint8_t y, int cr, int nr,
+                const struct Tetromino *ttm) {
+
+  uint8_t board[BOARD_HEIGHT][BOARD_WIDTH];
+  memcpy(&board, &state.board, sizeof(board));
   for (int line = 0; line < 4; line++)
     for (int col = 0; col < 4; col++) {
-      if (state.board[y + line][x + col] &
-          ((ttm->rotations[0] & (1 << col * 4 + line)) ? 1 : 0))
+      if (ttm->rotations[cr] & (1 << col * 4 + line))
+        board[y + line][x + col] &= 0;
+    }
+  printf("nr %d\n", nr);
+  for (int line = 0; line < 4; line++)
+    for (int col = 0; col < 4; col++) {
+      if (!IN_BOARD(x + col, y + line) ||
+          (board[y + line][x + col] &&
+           ((ttm->rotations[nr] & (1 << col * 4 + line)) ? ttm->color : NONE)))
         return false;
     }
   return true;
 }
-bool spawn(int x, int y, const struct Tetromino *ttm) {
-  if (!can_spawn(x, y, ttm)) {
+bool spawn(const struct Tetromino *ttm) {
+  if (!can_modify(BOARD_WIDTH / 2 - 2, 0, 0, 0, ttm)) {
     printf("Cant spawn !\n");
     return false;
   }
   state.curr.ttm = ttm;
-  state.curr.pos_x = x;
-  state.curr.pos_y = y;
+  state.curr.pos_x = BOARD_WIDTH / 2 - 2;
+  state.curr.pos_y = 0;
   for (int line = 0; line < 4; line++)
     for (int col = 0; col < 4; col++) {
-      state.board[y + line][x + col] |=
-          (ttm->rotations[0] & (1 << col * 4 + line)) ? 1 : 0;
+      state.board[line][state.curr.pos_x + col] |=
+          (ttm->rotations[0] & (1 << col * 4 + line)) ? ttm->color : NONE;
     }
   return true;
 }
-void update() {
+void rotate() {
+  if (!can_modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+                  (state.curr.rot + 1) % 4, state.curr.ttm)) {
+    printf("Cant rotate !\n");
+    return;
+  }
   for (int line = 0; line < 4; line++)
     for (int col = 0; col < 4; col++) {
-      if (state.curr.ttm->rotations[0] & (1 << col * 4 + line))
+      if (state.curr.ttm->rotations[state.curr.rot] & (1 << col * 4 + line))
         state.board[state.curr.pos_y + line][state.curr.pos_x + col] &= 0;
     }
-  spawn(state.curr.pos_x, state.curr.pos_y + 1, state.curr.ttm);
+  state.curr.rot = (state.curr.rot + 1) % 4;
+  for (int line = 0; line < 4; line++)
+    for (int col = 0; col < 4; col++) {
+      state.board[line][state.curr.pos_x + col] |=
+          (state.curr.ttm->rotations[state.curr.rot] & (1 << col * 4 + line))
+              ? state.curr.ttm->color
+              : NONE;
+    }
 }
 int main(void) {
   printf("Fat Teto\n");
+  state.curr.ttm = NULL;
+  state.curr.pos_x = 1;
+  state.curr.pos_y = 1;
+  state.curr.rot = 0;
   print_board();
-  spawn(BOARD_WIDTH / 2, 0, &TETROMINOS[0]);
-  print_board();
+  state.board[0][4] = 1;
+  spawn(&TETROMINOS[0]);
   while (1) {
-    update();
     print_board();
-    getchar();
+    switch (getchar()) {
+    case 'r':
+      rotate();
+      break;
+    default:
+    }
   }
+  printf("Cant spawn more stuff, gameover\n");
   ttm_test();
   return 0;
 }
