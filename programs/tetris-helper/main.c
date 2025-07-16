@@ -36,6 +36,7 @@ static struct {
     uint8_t rot;
     uint8_t pos_x, pos_y;
   } curr;
+  uint32_t lines;
 } state;
 
 static const struct Tetromino TETROMINOS[NUM_TETROMINOS] = {
@@ -87,6 +88,7 @@ void print_board() {
     putchar(' ');
   }
   putchar('\n');
+  printf("Score: %d\n", state.lines * 500);
 }
 void ttm_test() {
   for (int x = 0; x < NUM_TETROMINOS; x++) {
@@ -169,7 +171,7 @@ bool spawn(const struct Tetromino *ttm) {
 }
 bool modify(uint8_t xc, uint8_t yc, uint8_t rc, uint8_t xn, uint8_t yn,
             uint8_t rn) {
-  if (!can_modify(xc, yc, rc, xn, yn, rc)) {
+  if (!can_modify(xc, yc, rc, xn, yn, rn)) {
     return false;
   }
   int offset_y = TTM_SIZE_Y(state.curr.ttm->rotations[rc]);
@@ -193,12 +195,30 @@ bool modify(uint8_t xc, uint8_t yc, uint8_t rc, uint8_t xn, uint8_t yn,
     }
   return true;
 }
+void check_line() {
+  for (int y = 0; y < BOARD_HEIGHT; y++) {
+    bool line = true;
+    for (int x = 0; x < BOARD_WIDTH; x++) {
+      if (state.board[y][x] == 0) {
+        line = false;
+        break;
+      }
+    }
+    if (line) {
+      memset(&state.board[0], 0, BOARD_WIDTH);
+      if (y != 0)
+        memmove(&state.board[1], &state.board[0], y * BOARD_WIDTH);
+      state.lines++;
+    }
+  }
+}
 int main(void) {
   printf("Fat Teto\n");
   state.curr.ttm = NULL;
   state.curr.pos_x = 0;
   state.curr.pos_y = 0;
   state.curr.rot = 0;
+  state.lines = 0;
   print_board();
   while (1) {
     if (!spawn(&TETROMINOS[rand() % NUM_TETROMINOS]) && state.curr.ttm == NULL)
@@ -210,21 +230,38 @@ int main(void) {
       state.curr.pos_x = 0;
       state.curr.pos_y = 0;
       state.curr.rot = 0;
+      check_line();
     }
     switch (getchar()) {
+    case 'w':
+      modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+             state.curr.pos_x, state.curr.pos_y, (state.curr.rot + 1) % 4);
+      getchar();
+      break;
+    case 'd':
+      modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+             state.curr.pos_x + 1, state.curr.pos_y, state.curr.rot);
+      getchar();
+      break;
+    case 'a':
+      modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+             state.curr.pos_x - 1, state.curr.pos_y, state.curr.rot);
+      getchar();
+      break;
+    case 's':
+      modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+             state.curr.pos_x, state.curr.pos_y + 1, state.curr.rot);
+      getchar();
+      break;
     case ' ':
-      if (!modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
-                  state.curr.pos_x, state.curr.pos_y,
-                  (state.curr.rot + 1) % 4)) {
-        state.curr.ttm = NULL;
-        state.curr.pos_x = 0;
-        state.curr.pos_y = 0;
-        state.curr.rot = 0;
+      while (modify(state.curr.pos_x, state.curr.pos_y, state.curr.rot,
+                    state.curr.pos_x, state.curr.pos_y + 1, state.curr.rot)) {
       }
       break;
     default:
       break;
     }
   }
+  printf("Game Over!!!\n");
   return 0;
 }
